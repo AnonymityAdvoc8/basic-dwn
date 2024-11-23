@@ -2,6 +2,7 @@ import { DWNMessage } from '../interfaces/message'; // Assuming DWNMessage is in
 
 export interface StorageItem {
   id: string; // Unique identifier for the stored message
+  type: string; // Type of the message (e.g., "image")
   message: DWNMessage; // The DWNMessage payload
   timestamp: Date; // Timestamp of when the message was stored
 }
@@ -22,7 +23,13 @@ export class Storage {
     if (this.store.has(id)) {
       throw new Error(`Message with ID ${id} already exists.`);
     }
-    this.store.set(id, { id, message, timestamp: new Date() });
+
+    this.store.set(id, {
+      id,
+      type: message.type, // Extract type from DWNMessage
+      message,
+      timestamp: new Date(),
+    });
   }
 
   /**

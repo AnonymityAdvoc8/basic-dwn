@@ -1,11 +1,12 @@
 // src/middleware/roleAssigner.ts
 import { Request, Response, NextFunction } from 'express';
 
-/**
- * Middleware to assign roles dynamically.
- * @param roles - A mapping of user identifiers to roles.
- */
-export const roleAssigner = (roles: Record<string, string>) => {
+const roles: { [key: string]: string } = {
+    user1: 'viewer',
+    user2: 'author',
+  };
+
+export const roleAssigner = (roles: any) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     try {
       const userId = req.headers['x-user-id'] as string;
@@ -14,7 +15,7 @@ export const roleAssigner = (roles: Record<string, string>) => {
         throw new Error('User role not found or unauthorized');
       }
 
-      // Attach role to the request object
+      // Assign the role dynamically
       req.body.role = roles[userId];
       next();
     } catch (error) {

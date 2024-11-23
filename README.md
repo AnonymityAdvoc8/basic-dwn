@@ -7,9 +7,11 @@ A **Decentralized Web Node (DWN)** is a distributed system for managing verifiab
 
 ## Features
 
-- **DWNMessage Protocol**: Supports message validation based on a strict schema.
+- **DWNMessage Protocol**: Supports dynamic validation based on protocol definitions and roles.
+- **Protocol Roles**: Implements role-based access control (e.g., `author`, `viewer`, `writer`).
 - **In-memory Storage**: Saves and retrieves messages for testing and development.
 - **API Endpoints**: RESTful API for interacting with the node.
+- **Validation Middleware**: Role-based and protocol-driven action validation.
 - **TypeScript**: Fully typed for reliability and maintainability.
 - **Hot Reloading**: Uses `nodemon` for development convenience.
 
@@ -64,11 +66,17 @@ Send a DWNMessage to the node.
 ```json
 {
   "id": "123",
-  "type": "example.protocol",
-  "from": "did:example:sender123",
-  "to": "did:example:recipient456",
-  "data": { "message": "Hello, world!" },
-  "signature": "0xabcdef1234567890"
+  "type": "image-sharing:image",
+  "role": "author",
+  "author": "did:example:123",
+  "recipient": "did:example:456",
+  "data": {
+    "schema": "https://example.com/schemas/image",
+    "dataFormat": "image/png",
+    "payload": "<binary-image-data>"
+  },
+  "timestamp": "2024-11-22T12:00:00Z",
+  "signature": "0xabcdef"
 }
 ```
 
@@ -76,13 +84,20 @@ Send a DWNMessage to the node.
 ```bash
 curl -X POST http://localhost:3000/messages \
 -H "Content-Type: application/json" \
+-H "x-user-id: user2" \
 -d '{
   "id": "123",
-  "type": "example.protocol",
-  "from": "did:example:sender123",
-  "to": "did:example:recipient456",
-  "data": { "message": "Hello, world!" },
-  "signature": "0xabcdef1234567890"
+  "type": "image-sharing:image",
+  "role": "author",
+  "author": "did:example:123",
+  "recipient": "did:example:456",
+  "data": {
+    "schema": "https://example.com/schemas/image",
+    "dataFormat": "image/png",
+    "payload": "<binary-image-data>"
+  },
+  "timestamp": "2024-11-22T12:00:00Z",
+  "signature": "0xabcdef"
 }'
 ```
 
@@ -90,7 +105,7 @@ curl -X POST http://localhost:3000/messages \
 ```json
 {
   "status": "success",
-  "response": "Processed message with ID 123"
+  "message": "Message processed successfully"
 }
 ```
 
@@ -102,53 +117,44 @@ Retrieve a message by its unique identifier.
 
 #### **Example Request**
 ```bash
-curl -X GET http://localhost:3000/messages/123
+curl -X GET http://localhost:3000/messages/123 \
+-H "x-user-id: user2"
 ```
 
 #### **Example Response**
 ```json
 {
   "id": "123",
-  "message": {
-    "id": "123",
-    "type": "example.protocol",
-    "from": "did:example:sender123",
-    "to": "did:example:recipient456",
-    "data": { "message": "Hello, world!" },
-    "signature": "0xabcdef1234567890"
+  "type": "image-sharing:image",
+  "role": "author",
+  "author": "did:example:123",
+  "recipient": "did:example:456",
+  "data": {
+    "schema": "https://example.com/schemas/image",
+    "dataFormat": "image/png",
+    "payload": "<binary-image-data>"
   },
-  "timestamp": "2024-11-22T12:00:00.000Z"
+  "timestamp": "2024-11-22T12:00:00Z",
+  "signature": "0xabcdef"
 }
 ```
 
 ---
 
-### 3. **Invalid Message Example**
+### 3. **Invalid Role Example**
 
-Test the server's validation logic by sending a message that doesn't match the DWNMessage protocol.
-
-#### **Invalid Payload**
-```json
-{
-  "id": "123",
-  "data": "This is an invalid message"
-}
-```
+Test the role-based access control by using an unauthorized role.
 
 #### **Example Request**
 ```bash
-curl -X POST http://localhost:3000/messages \
--H "Content-Type: application/json" \
--d '{
-  "id": "123",
-  "data": "This is an invalid message"
-}'
+curl -X GET http://localhost:3000/messages/123 \
+-H "x-user-id: user1" # user1 has the role 'viewer', not 'author'
 ```
 
 #### **Expected Response**
 ```json
 {
-  "error": "Invalid message: Missing required fields"
+  "error": "Role viewer is not allowed to perform read on type image"
 }
 ```
 
@@ -180,18 +186,22 @@ curl -X POST http://localhost:3000/messages \
 basic-dwn/
 ├── src/
 │   ├── core/
-│   │   ├── protocols.ts       # Processes messages
-│   │   ├── resolver.ts        # DID resolution (stubbed)
-│   │   └── storage.ts         # In-memory storage
+|   |   |── protocolDefinitions.ts 
+│   │   ├── protocols.ts            # Processes messages
+│   │   ├── resolver.ts             # DID resolution (stubbed)
+│   │   └── storage.ts              # In-memory storage
 │   ├── interfaces/
-│   │   └── message.ts         # DWNMessage interface definition
+│   │   |── message.ts              # DWNMessage interface definition
+│   │   └── protocol.ts   
+│   ├── middleware/
+│   │   ├── protocolValidator.ts    # Protocol-based validation middleware
+│   │   └── roleAssigner.ts         # Role assignment middleware
 │   ├── transport/
-│   │   └── api.ts             # Express API definition
-│   └── index.ts               # Application entry point
-├── package.json               # Project dependencies and scripts
-├── tsconfig.json              # TypeScript configuration
-├── nodemon.json               # Nodemon configuration (optional)
-└── README.md                  # Project documentation
+│   │   └── api.ts                  # Express API definition
+│   └── index.ts                    # Application entry point
+├── package.json                    # Project dependencies and scripts
+├── tsconfig.json                   # TypeScript configuration
+└── README.md                       # Project documentation
 ```
 
 ---

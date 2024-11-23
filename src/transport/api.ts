@@ -1,5 +1,5 @@
 // src/transport/api.ts
-import express, { Request, Response } from 'express';
+import express, { NextFunction, Request, Response } from 'express';
 import bodyParser from 'body-parser';
 import { Storage } from '../core/storage';
 import { protocolValidator } from '../middleware/protocolValidator';
@@ -8,82 +8,81 @@ import { roleAssigner } from '../middleware/roleAssigner';
 const app = express();
 const storage = new Storage();
 
-// Define roles
+// Define roles in this file
 const roles = {
-  user1: 'viewer',
-  user2: 'writer',
-};
+    user1: 'viewer',
+    user2: 'author',
+  };
 
+  
 app.use(bodyParser.json());
 
-app.post(
-    '/messages',
-    roleAssigner(roles),
-    protocolValidator('create'), // Dynamically validates based on protocol type
-    (req: Request, res: Response) => {
-      const { id, data } = req.body;
-  
-      // Save the valid message
-      storage.save(id, {
-          id, data,
-          type: '',
-          from: '',
-          to: '',
-          signature: ''
-      });
-  
-      res.status(200).send({ status: 'success', message: 'Message processed successfully' });
-    }
-  );
-
-  
 /**
- * POST /messages/image
+ * POST /messages - Create a new message
  */
 app.post(
-  '/messages/image',
+  '/messages',
   roleAssigner(roles),
-  protocolValidator('create'),
+  protocolValidator('create'), // Dynamically validates based on protocol type
   (req: Request, res: Response) => {
-    const { id, data } = req.body;
+    try {
+      const { id, type, role, author, recipient, data, signature, timestamp } = req.body;
 
-    // Save the valid message
-    storage.save(id, {
-        id, data,
-        type: '',
-        from: '',
-        to: '',
-        signature: ''
-    });
+      // Save the valid message to storage
+      storage.save(id, {
+        id,
+        type,
+        role,
+        author,
+        recipient,
+        data,
+        signature,
+        timestamp,
+      });
 
-    res.status(200).send({ status: 'success', message: 'Message processed successfully' });
+      res.status(200).send({ status: 'success', message: 'Message processed successfully' });
+    } catch (error) {
+      res.status(400).send({ error: (error as Error).message });
+    }
   }
 );
 
 /**
- * GET /messages/:id
+ * GET /messages/:id - Retrieve a message by ID
  */
 app.get(
-  '/messages/:id',
-  roleAssigner(roles),
-  (req: Request<{ id: string }>, res: Response) => {
-    const id = req.params.id;
-    const role = req.body.role; // Role assigned by roleAssigner middleware
-
-    const item = storage.fetch(id);
-    if (!item) {
-      res.status(404).send({ error: 'Message not found' });
-      return;
+    '/messages/:id',
+    roleAssigner(roles),
+    (req: Request<{ id: string }>, res: Response, next: NextFunction) => {
+      try {
+        const id = req.params.id;
+  
+        // Fetch the message from storage
+        const item = storage.fetch(id);
+        if (!item) {
+          res.status(404).send({ error: 'Message not found' });
+          return;
+        }
+  
+        // Ensure `data` exists and has the required properties
+        if (!item.message.data || !item.message.data.schema) {
+          throw new Error('Message data is malformed or missing required fields');
+        }
+  
+        // Attach the message to the request for validation
+        req.body = item.message;
+  
+        res.locals.message = item.message; // Save the message for later use
+        next();
+      } catch (error) {
+        res.status(400).send({ error: (error as Error).message });
+      }
+    },
+    protocolValidator('read'), // Validate the action
+    (req: Request, res: Response) => {
+      const message = res.locals.message; // Retrieve the stored message
+      res.status(200).send(message);
     }
-
-    // Allow only viewers or writers to access messages
-    if (!['viewer', 'writer'].includes(role)) {
-      res.status(403).send({ error: 'Unauthorized access to the message' });
-      return;
-    }
-
-    res.status(200).send(item);
-  }
-);
+  );
 
 export const api = app;

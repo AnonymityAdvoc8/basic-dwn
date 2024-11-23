@@ -26,7 +26,7 @@ export class Protocols {
 
     // Validate payload size
     const structure = this.definition.structure[message.type];
-    const payloadSize = JSON.stringify(message.data).length;
+    const payloadSize = JSON.stringify(message.data.payload).length;
     if (structure?.$size && payloadSize > structure.$size.max) {
       throw new Error(`Payload size exceeds the allowed maximum of ${structure.$size.max} bytes`);
     }
@@ -35,15 +35,15 @@ export class Protocols {
   /**
    * Validates actions based on roles and permissions.
    */
-  validateAction(message: DWNMessage, role: string, action: string): void {
+  validateAction(message: DWNMessage, action: string): void {
     const structure = this.definition.structure[message.type];
     if (!structure?.$actions) {
       throw new Error(`No actions defined for type ${message.type}`);
     }
 
-    const allowedActions = structure.$actions.filter((a) => a.role === role);
+    const allowedActions = structure.$actions.filter((a) => a.role === message.role);
     if (!allowedActions.some((a) => a.can.includes(action))) {
-      throw new Error(`Role ${role} is not allowed to perform ${action} on type ${message.type}`);
+      throw new Error(`Role ${message.role} is not allowed to perform ${action} on type ${message.type}`);
     }
   }
 }
